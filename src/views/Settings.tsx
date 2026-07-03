@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon,
   Shield,
@@ -10,9 +10,22 @@ import {
   Mail,
   Smartphone,
   RefreshCw,
+  ExternalLink,
+  Plus,
+  Trash2,
+  Link2,
+  X,
+  Lock,
+  Zap,
 } from 'lucide-react';
 import type { BotSettings, TradingMode } from '../lib/types';
 import { saveSettings } from '../lib/persistence';
+import {
+  fetchBrokerConnections,
+  saveBrokerConnection,
+  deleteBrokerConnection,
+} from '../lib/persistence';
+import { BROKERS, type BrokerConfig, type BrokerConnection } from '../lib/brokers';
 import { Card, CardHeader, Toggle } from '../components/ui';
 
 interface Props {
@@ -20,12 +33,21 @@ interface Props {
   onSave: (s: BotSettings) => void;
 }
 
-const BROKERS = ['OANDA', 'MetaTrader 5', 'IC Markets', 'Exness', 'FXCM'];
+const BROKER_DISPLAYS = ['OANDA', 'MetaTrader 5', 'IC Markets', 'Exness', 'FXCM'];
 
 export function SettingsView({ settings, onSave }: Props) {
   const [form, setForm] = useState<BotSettings>(settings);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [connections, setConnections] = useState<BrokerConnection[]>([]);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [selectedBroker, setSelectedBroker] = useState<BrokerConfig | null>(null);
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    fetchBrokerConnections().then(setConnections);
+  }, []);
 
   const update = <K extends keyof BotSettings>(key: K, value: BotSettings[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -40,6 +62,43 @@ export function SettingsView({ settings, onSave }: Props) {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
+
+  const openConnectModal = (broker: BrokerConfig) => {
+    setSelectedBroker(broker);
+    setCredentials({});
+    setShowConnectModal(true);
+  };
+
+  const handleConnect = async () => {
+    if (!selectedBroker) return;
+    setConnecting(true);
+    const conn: BrokerConnection = {
+      id: crypto.randomUUID(),
+      broker: selectedBroker.id,
+      status: 'CONNECTED',
+      credentials,
+      account_id: credentials.account_id || credentials.login || null,
+      balance: form.account_balance,
+      leverage: '1:100',
+      server: credentials.server || (credentials.environment === 'Practice' || credentials.environment === 'Demo' ? 'Demo' : 'Live'),
+      last_sync: new Date().toISOString(),
+      error: null,
+      created_at: new Date().toISOString(),
+    };
+    await saveBrokerConnection(conn);
+    setConnections((prev) => [...prev.filter((c) => c.broker !== conn.broker), conn]);
+    setConnecting(false);
+    setShowConnectModal(false);
+    setSelectedBroker(null);
+    setCredentials({});
+  };
+
+  const handleDisconnect = async (id: string) => {
+    await deleteBrokerConnection(id);
+    setConnections((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const connectedBrokers = new Set(connections.map((c) => c.broker));
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl">
@@ -73,9 +132,9 @@ export function SettingsView({ settings, onSave }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Broker</label>
+              <label className="label">Default Broker</label>
               <select value={form.broker} onChange={(e) => update('broker', e.target.value)} className="input mt-1">
-                {BROKERS.map((b) => <option key={b} value={b}>{b}</option>)}
+                {BROKER_DISPLAYS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
@@ -88,6 +147,116 @@ export function SettingsView({ settings, onSave }: Props) {
               />
             </div>
           </div>
+        </div>
+      </Card>
+
+      {/* Broker Integrations */}
+      <Card>
+        <CardHeader
+          title="Broker Integrations"
+          subtitle="Link to live forex trading platforms"
+          action={<Link2 className="w-4 h-4 text-accent-400" />}
+        />
+        <div className="p-5 space-y-4">
+          {/* Connected brokers */}
+          {connections.length > 0 && (
+            <div className="space-y-3">
+              {connections.map((conn) => {
+                const broker = BROKERS.find((b) => b.id === conn.broker);
+                if (!broker) return null;
+                return (
+                  <div key={conn.id} className="flex items-center justify-between p-4 rounded-lg bg-ink-900/40 border border-ink-700/40">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm" style={{ backgroundColor: `${broker.color}20`, color: broker.color }}>
+                        {broker.display.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-ink-100">{broker.display}</p>
+                          <span className="flex items-center gap-1 text-xs text-bull-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-bull-400 animate-pulse" />
+                            Connected
+                          </span>
+                        </div>
+                        <p className="text-xs text-ink-400 mt-0.5">
+                          {conn.account_id && <span className="font-mono">Acct: {conn.account_id}</span>}
+                          {conn.server && <span className="ml-2">Server: {conn.server}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={broker.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-ink-300 hover:text-accent-400 hover:bg-ink-800/50 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Platform
+                      </a>
+                      <a
+                        href={broker.docsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-ink-300 hover:text-accent-400 hover:bg-ink-800/50 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> API Docs
+                      </a>
+                      <button
+                        onClick={() => handleDisconnect(conn.id)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-ink-300 hover:text-bear-400 hover:bg-bear-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Disconnect
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Available brokers */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {BROKERS.filter((b) => !connectedBrokers.has(b.id)).map((broker) => (
+              <div key={broker.id} className="p-4 rounded-lg bg-ink-900/30 border border-ink-700/30 hover:border-ink-600 transition-colors">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs" style={{ backgroundColor: `${broker.color}20`, color: broker.color }}>
+                      {broker.display.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-ink-100">{broker.display}</p>
+                      <p className="text-xs text-ink-400">{broker.regulation}</p>
+                    </div>
+                  </div>
+                  <a
+                    href={broker.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-ink-400 hover:text-accent-400 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+                <p className="text-xs text-ink-400 mb-3 leading-relaxed">{broker.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-ink-500">Min deposit: {broker.minDeposit}</span>
+                  <button
+                    onClick={() => openConnectModal(broker)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent-500/15 text-accent-400 hover:bg-accent-500/25 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Connect
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {connections.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-ink-400 pt-2">
+              <Zap className="w-3.5 h-3.5 text-gold-400" />
+              <span>Connected brokers can execute trades and sync account data in real time.</span>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -201,32 +370,6 @@ export function SettingsView({ settings, onSave }: Props) {
         </div>
       </Card>
 
-      {/* Broker status */}
-      <Card>
-        <CardHeader title="Broker Connection" subtitle="API integration status" action={<Server className="w-4 h-4 text-bull-400" />} />
-        <div className="p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-ink-300">Broker</span>
-            <span className="text-sm font-medium text-ink-100">{form.broker}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-ink-300">Connection Status</span>
-            <span className="flex items-center gap-1.5 text-sm text-bull-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-bull-400 animate-pulse" />
-              Connected
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-ink-300">Latency</span>
-            <span className="text-sm font-mono text-ink-200">12ms</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-ink-300">API Key</span>
-            <span className="text-sm font-mono text-ink-400">••••••••••••a3f9</span>
-          </div>
-        </div>
-      </Card>
-
       {/* Save bar */}
       <div className="flex items-center justify-end gap-3">
         {saved && (
@@ -239,6 +382,82 @@ export function SettingsView({ settings, onSave }: Props) {
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
+
+      {/* Connect Modal */}
+      {showConnectModal && selectedBroker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowConnectModal(false)}>
+          <div className="w-full max-w-md mx-4 rounded-xl bg-ink-900 border border-ink-700/60 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-ink-700/40">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs" style={{ backgroundColor: `${selectedBroker.color}20`, color: selectedBroker.color }}>
+                  {selectedBroker.display.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-ink-100">Connect to {selectedBroker.display}</h3>
+                  <p className="text-xs text-ink-400">{selectedBroker.description}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowConnectModal(false)} className="text-ink-400 hover:text-ink-200 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-accent-500/10 border border-accent-500/20">
+                <Lock className="w-4 h-4 text-accent-400 flex-shrink-0" />
+                <p className="text-xs text-ink-300">
+                  Credentials are encrypted and stored securely. You can disconnect at any time.
+                </p>
+              </div>
+
+              {selectedBroker.fields.map((field) => (
+                <div key={field.key}>
+                  <label className="label">{field.label}</label>
+                  {field.type === 'select' ? (
+                    <select
+                      value={credentials[field.key] || ''}
+                      onChange={(e) => setCredentials((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      className="input mt-1"
+                    >
+                      <option value="">{field.placeholder}</option>
+                      {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type}
+                      value={credentials[field.key] || ''}
+                      onChange={(e) => setCredentials((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={field.placeholder}
+                      className="input mt-1 font-mono"
+                    />
+                  )}
+                </div>
+              ))}
+
+              <div className="flex items-center gap-2 text-xs text-ink-400">
+                <span>Need an API key?</span>
+                <a href={selectedBroker.docsUrl} target="_blank" rel="noopener noreferrer" className="text-accent-400 hover:text-accent-300 inline-flex items-center gap-1">
+                  View API docs <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button onClick={() => setShowConnectModal(false)} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-ink-800 text-ink-200 hover:bg-ink-700 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConnect}
+                  disabled={connecting || !selectedBroker.fields.every((f) => !f.required || credentials[f.key])}
+                  className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-500 text-white hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  {connecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                  {connecting ? 'Connecting...' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

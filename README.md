@@ -51,10 +51,26 @@ A bot that earns 20% annually with controlled risk is more valuable than one tha
 
 ### Settings
 - Trading mode: Manual (approve every trade), Semi-Auto (auto-execute above threshold), Auto (fully automated)
-- Broker selection: OANDA, MetaTrader 5, IC Markets, Exness, FXCM
 - Configurable risk parameters: risk per trade, max daily drawdown, min confidence, max open positions
 - Alert toggles: Telegram, email, push notifications
-- Broker connection status display
+- Capital preservation mode toggle
+
+### Broker Integrations
+Link QuantEdge directly to major forex trading platforms for live trade execution and account syncing:
+
+| Broker | API | Auth | Regulation | Min Deposit |
+|--------|-----|------|------------|-------------|
+| **OANDA** | REST v20 | Bearer token | CFTC, NFA, FCA, ASIC, IIROC | $0 |
+| **MetaTrader 5** | WebAPI | Login + password | Multi-broker | Varies |
+| **IC Markets** | cTrader Open API | Client ID + secret | ASIC, CySEC, SCB | $200 |
+| **Exness** | Open API v2 | API key + secret | FCA, CySEC, FSA | $10 |
+| **FXCM** | Trading Station API (REST + FIX 4.4) | Bearer token | FCA, ASIC, FSCA | $50 |
+
+- One-click connect modal with per-broker credential fields
+- Connection status indicators (Connected / Disconnected / Error)
+- Direct links to each broker's platform and API documentation
+- Credentials stored securely in Supabase; disconnect at any time
+- Connected brokers sync account balance, leverage, and server info
 
 ## Technology Stack
 
@@ -69,12 +85,13 @@ A bot that earns 20% annually with controlled risk is more valuable than one tha
 
 ## Database Schema
 
-Four tables with RLS enabled on all:
+Five tables with RLS enabled on all:
 
 - **`trades`** — Executed and pending trades with entry/exit/SL/TP, confidence, P&L, and strategy attribution
 - **`signals`** — AI-generated trading signals with model scores, indicator contributions, sentiment, and explainable AI text
 - **`bot_settings`** — Single-row configuration table for risk params, broker, alerts, and trading mode
 - **`economic_events`** — Economic calendar events with impact level, forecast/previous/actual values, and sentiment impact
+- **`broker_connections`** — Linked broker accounts with credentials, status, account ID, balance, leverage, and server info
 
 All tables use `TO anon, authenticated` policies (single-tenant, no auth screen) so the frontend can read and write via the anon key.
 
@@ -100,8 +117,9 @@ src/
 │   └── ui.tsx                 # Card, StatCard, ConfidenceBar, badges, Toggle
 ├── lib/
 │   ├── ai.ts                  # Signal/news/event generation, backtest equity
+│   ├── brokers.ts             # Broker configs (OANDA, MT5, IC Markets, Exness, FXCM)
 │   ├── market.ts              # Live price engine, candle generation, pip utils
-│   ├── persistence.ts         # Supabase CRUD for trades, signals, settings
+│   ├── persistence.ts         # Supabase CRUD for trades, signals, settings, broker connections
 │   ├── seed.ts                # Seed trade generator
 │   ├── supabase.ts            # Supabase client singleton
 │   └── types.ts              # Shared TypeScript types

@@ -1,6 +1,7 @@
 import { supabase, supabaseReady } from './supabase';
 import type { BotSettings, Signal, Trade } from './types';
 import { generateSeedTrades } from './seed';
+import type { BrokerConnection } from './brokers';
 
 export const DEFAULT_SETTINGS: BotSettings = {
   id: 1,
@@ -79,4 +80,23 @@ export async function saveSignal(s: Signal): Promise<void> {
 export async function updateSignalStatus(id: string, status: Signal['status']): Promise<void> {
   if (!supabaseReady) return;
   await supabase.from('signals').update({ status }).eq('id', id);
+}
+
+export async function fetchBrokerConnections(): Promise<BrokerConnection[]> {
+  if (!supabaseReady) return [];
+  const { data } = await supabase
+    .from('broker_connections')
+    .select('*')
+    .order('created_at', { ascending: true });
+  return (data ?? []) as BrokerConnection[];
+}
+
+export async function saveBrokerConnection(conn: BrokerConnection): Promise<void> {
+  if (!supabaseReady) return;
+  await supabase.from('broker_connections').upsert(conn);
+}
+
+export async function deleteBrokerConnection(id: string): Promise<void> {
+  if (!supabaseReady) return;
+  await supabase.from('broker_connections').delete().eq('id', id);
 }
