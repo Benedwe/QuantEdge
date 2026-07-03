@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-ink-950 text-ink-100 font-sans antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-ink-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-500;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-ink-850/80 border border-ink-700/60 rounded-xl backdrop-blur-sm;
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:border-ink-600/80 hover:bg-ink-800/80;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent-500 hover:bg-accent-400 text-white shadow-lg shadow-accent-500/20;
+  }
+  .btn-bull {
+    @apply btn bg-bull-500 hover:bg-bull-400 text-white shadow-lg shadow-bull-500/20;
+  }
+  .btn-bear {
+    @apply btn bg-bear-500 hover:bg-bear-400 text-white shadow-lg shadow-bear-500/20;
+  }
+  .btn-ghost {
+    @apply btn bg-ink-700/50 hover:bg-ink-600/50 text-ink-200 border border-ink-600/40;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold;
+  }
+  .badge-bull {
+    @apply badge bg-bull-500/15 text-bull-400 border border-bull-500/20;
+  }
+  .badge-bear {
+    @apply badge bg-bear-500/15 text-bear-400 border border-bear-500/20;
+  }
+  .badge-neutral {
+    @apply badge bg-ink-700/50 text-ink-300 border border-ink-600/40;
+  }
+  .badge-accent {
+    @apply badge bg-accent-500/15 text-accent-400 border border-accent-500/20;
+  }
+  .badge-gold {
+    @apply badge bg-gold-500/15 text-gold-400 border border-gold-500/20;
+  }
+  .input {
+    @apply w-full bg-ink-900/60 border border-ink-600/40 rounded-lg px-3 py-2 text-sm text-ink-100 placeholder-ink-400 focus:outline-none focus:border-accent-500/60 focus:ring-1 focus:ring-accent-500/30 transition-colors;
+  }
+  .label {
+    @apply text-xs font-medium text-ink-300 uppercase tracking-wider;
+  }
+  .stat-value {
+    @apply font-mono font-semibold text-ink-100;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-400 to-bull-400 bg-clip-text text-transparent;
+  }
+  .glow-bull {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+  }
+  .glow-bear {
+    box-shadow: 0 0 20px rgba(244, 63, 94, 0.15);
+  }
+}
