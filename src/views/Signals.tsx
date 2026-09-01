@@ -13,9 +13,9 @@ import {
   X,
 } from 'lucide-react';
 import type { BotSettings, Signal } from '../lib/types';
-import { generateSignal } from '../lib/ai';
-import { buildMarketState, buildSignals, executeTradePlan } from '../lib/market-engine';
-import { saveTrade, updateSignalStatus } from '../lib/persistence';
+import { buildMarketState, buildSignals, evaluateMarketRegime, executeTradePlan, shouldAutoExecute } from '../lib/market-engine';
+import { fetchBrokerConnections, saveTrade, updateSignalStatus } from '../lib/persistence';
+import { submitOandaOrder } from '../lib/broker-api';
 import { Card, CardHeader, ConfidenceBar, DirectionBadge, EmptyState } from '../components/ui';
 
 interface Props {
@@ -28,6 +28,8 @@ export function Signals({ settings, onTradeExecuted }: Props) {
   const [selected, setSelected] = useState<Signal | null>(null);
   const [scanning, setScanning] = useState(false);
   const [executing, setExecuting] = useState<string | null>(null);
+  const marketRegime = evaluateMarketRegime(buildMarketState('EUR/USD'));
+  const executionMode = settings.trading_mode === 'AUTO' ? 'Auto execution' : settings.trading_mode === 'SEMIAUTO' ? 'Semi-auto approval' : 'Manual approval';
 
   useEffect(() => {
     const base = buildMarketState('EUR/USD');
@@ -47,13 +49,47 @@ export function Signals({ settings, onTradeExecuted }: Props) {
   const execute = async (signal: Signal) => {
     setExecuting(signal.id);
     const market = buildMarketState(signal.symbol);
-    const trade = executeTradePlan(signal, market, { riskPerTrade: settings.risk_per_trade, balance: settings.account_balance });
-    await saveTrade(trade);
-    await updateSignalStatus(signal.id, 'EXECUTED');
-    setSignals((prev) => prev.filter((s) => s.id !== signal.id));
-    if (selected?.id === signal.id) setSelected(null);
-    await onTradeExecuted();
-    setExecuting(null);
+
+    if (settings.trading_mode === 'AUTO') {
+      const canAutoExecute = shouldAutoExecute(signal, settings, 0);
+      if (!canAutoExecute) {
+        setExecuting(null);
+        return;
+      }
+    }
+
+    try {
+      const brokerConnections = await fetchBrokerConnections();
+      const activeOanda = brokerConnections.find((connection) => connection.broker === 'OANDA' && connection.status === 'CONNECTED');
+
+      if (activeOanda && settings.broker === 'OANDA') {
+        const order = await submitOandaOrder({
+          symbol: signal.symbol,
+          direction: signal.direction,
+          lotSize: Number((settings.account_balance * (settings.risk_per_trade / 100) / 1000).toFixed(2)),
+          stopLoss: signal.stop_loss,
+          takeProfit: signal.take_profit,
+          apiKey: activeOanda.credentials.api_key,
+          accountId: activeOanda.account_id ?? undefined,
+          environment: activeOanda.credentials.environment,
+        });
+
+        if (!order.ok) {
+          throw new Error(order.message);
+        }
+      }
+
+      const trade = executeTradePlan(signal, market, { riskPerTrade: settings.risk_per_trade, balance: settings.account_balance });
+      await saveTrade(trade);
+      await updateSignalStatus(signal.id, 'EXECUTED');
+      setSignals((prev) => prev.filter((s) => s.id !== signal.id));
+      if (selected?.id === signal.id) setSelected(null);
+      await onTradeExecuted();
+    } catch (error) {
+      console.error('Broker execution failed:', error);
+    } finally {
+      setExecuting(null);
+    }
   };
 
   const dismiss = (id: string) => {
@@ -76,10 +112,20 @@ export function Signals({ settings, onTradeExecuted }: Props) {
             <p className="text-xs text-ink-400">LSTM · Transformer · XGBoost · Random Forest ensemble</p>
           </div>
         </div>
-        <button onClick={scan} disabled={scanning} className="btn-primary">
-          {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {scanning ? 'Scanning markets...' : 'Scan for Signals'}
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg border border-accent-500/20 bg-accent-500/10 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-ink-400">Market regime</p>
+            <p className="text-sm font-semibold text-accent-400">{marketRegime}</p>
+          </div>
+          <div className="rounded-lg border border-gold-500/20 bg-gold-500/10 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-ink-400">Execution</p>
+            <p className="text-sm font-semibold text-gold-400">{executionMode}</p>
+          </div>
+          <button onClick={scan} disabled={scanning} className="btn-primary">
+            {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {scanning ? 'Scanning markets...' : 'Scan for Signals'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

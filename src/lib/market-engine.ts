@@ -1,4 +1,4 @@
-import type { Direction, IndicatorContribution, ModelScore, Signal, Trade } from './types';
+import type { BotSettings, Direction, IndicatorContribution, ModelScore, Signal, Trade } from './types';
 import { getPair, PAIRS } from './market';
 
 export interface MarketFrame {
@@ -134,6 +134,31 @@ export function buildSignals(market: MarketState, count = 3): Signal[] {
   });
 
   return signals;
+}
+
+export function evaluateMarketRegime(market: MarketState): 'Trending' | 'Ranging' | 'Volatile' | 'Breakout' {
+  const avgTrend = market.frames.reduce((sum, frame) => sum + frame.trend, 0) / Math.max(1, market.frames.length);
+  const avgVol = market.frames.reduce((sum, frame) => sum + frame.volatility, 0) / Math.max(1, market.frames.length);
+  const momentum = market.frames.reduce((sum, frame) => sum + frame.momentum, 0) / Math.max(1, market.frames.length);
+
+  if (Math.abs(avgTrend) > 0.55 && avgVol < 0.75) return 'Trending';
+  if (Math.abs(avgTrend) < 0.2 && Math.abs(momentum) < 0.2) return 'Ranging';
+  if (avgVol > 0.8 || market.volumeProxy > 6000) return 'Volatile';
+  if (Math.abs(avgTrend) > 0.6 && market.calendarImpact > 0.6) return 'Breakout';
+  return 'Trending';
+}
+
+export function shouldAutoExecute(
+  signal: Signal,
+  settings: BotSettings,
+  openPositions: number,
+): boolean {
+  if (settings.trading_mode !== 'AUTO') return false;
+  if (signal.confidence < settings.min_confidence) return false;
+  if (settings.capital_preservation && signal.confidence < 90) return false;
+  if (openPositions >= settings.max_open_positions) return false;
+  if (settings.account_balance <= 0) return false;
+  return true;
 }
 
 export function executeTradePlan(

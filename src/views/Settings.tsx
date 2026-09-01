@@ -26,6 +26,7 @@ import {
   deleteBrokerConnection,
 } from '../lib/persistence';
 import { BROKERS, type BrokerConfig, type BrokerConnection } from '../lib/brokers';
+import { validateOandaConnection } from '../lib/broker-api';
 import { Card, CardHeader, Toggle } from '../components/ui';
 
 interface Props {
@@ -72,25 +73,54 @@ export function SettingsView({ settings, onSave }: Props) {
   const handleConnect = async () => {
     if (!selectedBroker) return;
     setConnecting(true);
-    const conn: BrokerConnection = {
-      id: crypto.randomUUID(),
-      broker: selectedBroker.id,
-      status: 'CONNECTED',
-      credentials,
-      account_id: credentials.account_id || credentials.login || null,
-      balance: form.account_balance,
-      leverage: '1:100',
-      server: credentials.server || (credentials.environment === 'Practice' || credentials.environment === 'Demo' ? 'Demo' : 'Live'),
-      last_sync: new Date().toISOString(),
-      error: null,
-      created_at: new Date().toISOString(),
-    };
-    await saveBrokerConnection(conn);
-    setConnections((prev) => [...prev.filter((c) => c.broker !== conn.broker), conn]);
-    setConnecting(false);
-    setShowConnectModal(false);
-    setSelectedBroker(null);
-    setCredentials({});
+
+    try {
+      if (selectedBroker.id === 'OANDA') {
+        await validateOandaConnection({
+          api_key: credentials.api_key,
+          account_id: credentials.account_id,
+          environment: credentials.environment,
+        });
+      }
+
+      const conn: BrokerConnection = {
+        id: crypto.randomUUID(),
+        broker: selectedBroker.id,
+        status: 'CONNECTED',
+        credentials,
+        account_id: credentials.account_id || credentials.login || null,
+        balance: form.account_balance,
+        leverage: '1:100',
+        server: credentials.server || (credentials.environment === 'Practice' || credentials.environment === 'Demo' ? 'Demo' : 'Live'),
+        last_sync: new Date().toISOString(),
+        error: null,
+        created_at: new Date().toISOString(),
+      };
+      await saveBrokerConnection(conn);
+      setConnections((prev) => [...prev.filter((c) => c.broker !== conn.broker), conn]);
+      setShowConnectModal(false);
+      setSelectedBroker(null);
+      setCredentials({});
+    } catch (error) {
+      setConnections((prev) => [
+        ...prev.filter((c) => c.broker !== selectedBroker.id),
+        {
+          id: crypto.randomUUID(),
+          broker: selectedBroker.id,
+          status: 'ERROR',
+          credentials,
+          account_id: credentials.account_id || credentials.login || null,
+          balance: form.account_balance,
+          leverage: '1:100',
+          server: credentials.server || (credentials.environment === 'Practice' || credentials.environment === 'Demo' ? 'Demo' : 'Live'),
+          last_sync: new Date().toISOString(),
+          error: error instanceof Error ? error.message : 'Broker connection failed.',
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const handleDisconnect = async (id: string) => {

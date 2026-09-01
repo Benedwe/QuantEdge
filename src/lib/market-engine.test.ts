@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMarketState, buildSignals, executeTradePlan, type MarketFrame } from './market-engine';
+import { buildMarketState, buildSignals, executeTradePlan, evaluateMarketRegime, shouldAutoExecute, type MarketFrame } from './market-engine';
 
 describe('market engine', () => {
   it('fuses short, medium, and long frame bias into a single signal', () => {
@@ -53,5 +53,20 @@ describe('market engine', () => {
 
     expect(signal.models.some((m) => m.name.includes('Multi'))).toBe(true);
     expect(signal.indicators.some((i) => i.name.includes('Multi'))).toBe(true);
+  });
+
+  it('blocks execution when auto mode or capital preservation is unsafe', () => {
+    const market = buildMarketState('EUR/USD');
+    const strongSignal = { ...buildSignals(market, 1)[0], confidence: 91, entry_zone_low: market.price - 0.002, entry_zone_high: market.price + 0.002, stop_loss: market.price - 0.004, take_profit: market.price + 0.006 };
+    const weakSignal = { ...strongSignal, confidence: 88 };
+
+    expect(shouldAutoExecute(strongSignal, { min_confidence: 80, trading_mode: 'AUTO', capital_preservation: false, max_open_positions: 5, account_balance: 10000, risk_per_trade: 1, max_daily_drawdown: 10, broker: 'OANDA', telegram_enabled: false, email_enabled: false, push_enabled: false, id: 1, updated_at: new Date().toISOString() }, 2)).toBe(true);
+    expect(shouldAutoExecute(strongSignal, { min_confidence: 80, trading_mode: 'SEMIAUTO', capital_preservation: false, max_open_positions: 5, account_balance: 10000, risk_per_trade: 1, max_daily_drawdown: 10, broker: 'OANDA', telegram_enabled: false, email_enabled: false, push_enabled: false, id: 1, updated_at: new Date().toISOString() }, 2)).toBe(false);
+    expect(shouldAutoExecute(weakSignal, { min_confidence: 90, trading_mode: 'AUTO', capital_preservation: true, max_open_positions: 5, account_balance: 10000, risk_per_trade: 1, max_daily_drawdown: 10, broker: 'OANDA', telegram_enabled: false, email_enabled: false, push_enabled: false, id: 1, updated_at: new Date().toISOString() }, 1)).toBe(false);
+  });
+
+  it('classifies a market regime based on volatility and trend', () => {
+    expect(evaluateMarketRegime({ symbol: 'EUR/USD', price: 1.085, frames: [{ label: 'M1', trend: 0.75, momentum: 0.7, volatility: 0.65, support: 1.08, resistance: 1.09 }, { label: 'M5', trend: 0.6, momentum: 0.5, volatility: 0.55, support: 1.08, resistance: 1.09 }, { label: 'H1', trend: 0.7, momentum: 0.6, volatility: 0.6, support: 1.08, resistance: 1.09 }, { label: 'H4', trend: 0.5, momentum: 0.4, volatility: 0.4, support: 1.08, resistance: 1.09 }, { label: 'D1', trend: 0.8, momentum: 0.7, volatility: 0.5, support: 1.08, resistance: 1.09 }], volumeProxy: 5000, newsBias: 0.3, calendarImpact: 0.7, timestamp: Date.now() })).toBe('Trending');
+    expect(evaluateMarketRegime({ symbol: 'GBP/USD', price: 1.27, frames: [{ label: 'M1', trend: 0.1, momentum: 0.15, volatility: 0.7, support: 1.26, resistance: 1.28 }, { label: 'M5', trend: -0.05, momentum: 0.1, volatility: 0.7, support: 1.26, resistance: 1.28 }, { label: 'H1', trend: 0.08, momentum: -0.02, volatility: 0.75, support: 1.26, resistance: 1.28 }, { label: 'H4', trend: -0.1, momentum: 0.05, volatility: 0.7, support: 1.26, resistance: 1.28 }, { label: 'D1', trend: 0.05, momentum: -0.02, volatility: 0.72, support: 1.26, resistance: 1.28 }], volumeProxy: 2600, newsBias: 0.05, calendarImpact: 0.1, timestamp: Date.now() })).toBe('Ranging');
   });
 });
