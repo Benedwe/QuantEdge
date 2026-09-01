@@ -211,7 +211,9 @@ export function SettingsView({ settings, onSave }: Props) {
                         <p className="text-xs text-ink-400 mt-0.5">
                           {conn.account_id && <span className="font-mono">Acct: {conn.account_id}</span>}
                           {conn.server && <span className="ml-2">Server: {conn.server}</span>}
+                          {conn.last_sync && <span className="ml-2">Synced: {new Date(conn.last_sync).toLocaleTimeString()}</span>}
                         </p>
+                        {conn.error && <p className="text-[11px] text-bear-400 mt-1">{conn.error}</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

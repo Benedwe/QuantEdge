@@ -25,6 +25,24 @@ export interface BrokerExecutionResult {
   details?: Record<string, unknown>;
 }
 
+export interface OandaAccountSummary {
+  accountId: string;
+  balance: number;
+  currency: string;
+  status: string;
+  lastUpdated: string;
+}
+
+export interface OandaOrderStatus {
+  orderId: string;
+  status: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  price: number | null;
+  units: number;
+  lastUpdated: string;
+}
+
 export function normalizeBrokerSymbol(symbol: string): string {
   return symbol.trim().replace(/\s+/g, '').replace('/', '_').replace(/-/g, '_').toUpperCase();
 }
@@ -166,4 +184,92 @@ export async function submitOandaOrder(order: BrokerOrderInput): Promise<BrokerE
 
 export function getBrokerApiBaseUrl(environment: string | undefined): string {
   return environment === 'Trade' ? 'https://api-fxtrade.oanda.com' : 'https://api-fxpractice.oanda.com';
+}
+
+export function parseOandaAccountSummary(payload: Record<string, any>): OandaAccountSummary {
+  const account = payload?.account ?? payload ?? {};
+  const balance = Number(account.balance ?? 0);
+
+  return {
+    accountId: String(account.id ?? 'unknown'),
+    balance: Number.isFinite(balance) ? balance : 0,
+    currency: String(account.currency ?? 'USD'),
+    status: String(account.status ?? 'ACTIVE'),
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+export function parseOandaOrderStatus(payload: Record<string, any>): OandaOrderStatus {
+  const order = payload?.order ?? payload ?? {};
+  const side = String(order.side ?? 'buy').toLowerCase() === 'sell' ? 'SELL' : 'BUY';
+  const symbol = normalizePairSymbol(String(order.instrument ?? 'EUR_USD'));
+  const price = order.price === undefined || order.price === null ? null : Number(order.price);
+
+  return {
+    orderId: String(order.id ?? 'unknown'),
+    status: String(order.state ?? order.status ?? 'PENDING'),
+    symbol,
+    side,
+    price: Number.isFinite(price) ? price : null,
+    units: Number(order.units ?? 0),
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+export async function fetchOandaAccountSummary(credentials: Partial<OandaCredentials>): Promise<OandaAccountSummary> {
+  const apiKey = credentials.api_key?.trim();
+  const accountId = credentials.account_id?.trim();
+  const environment = credentials.environment ?? 'Practice';
+
+  if (!apiKey || !accountId) {
+    throw new Error('Missing OANDA API token or account ID.');
+  }
+
+  const baseUrl = getBrokerApiBaseUrl(environment);
+  const response = await fetch(`${baseUrl}/v3/accounts/${encodeURIComponent(accountId)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`OANDA account sync failed: ${response.status} ${detail}`);
+  }
+
+  return parseOandaAccountSummary(await response.json());
+}
+
+export async function fetchOandaOrderStatus({
+  apiKey,
+  accountId,
+  environment,
+  orderId,
+}: {
+  apiKey: string;
+  accountId: string;
+  environment?: string;
+  orderId: string;
+}): Promise<OandaOrderStatus> {
+  if (!apiKey || !accountId || !orderId) {
+    throw new Error('Missing OANDA order tracking fields.');
+  }
+
+  const baseUrl = getBrokerApiBaseUrl(environment);
+  const response = await fetch(`${baseUrl}/v3/accounts/${encodeURIComponent(accountId)}/orders/${encodeURIComponent(orderId)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`OANDA order status check failed: ${response.status} ${detail}`);
+  }
+
+  return parseOandaOrderStatus(await response.json());
 }

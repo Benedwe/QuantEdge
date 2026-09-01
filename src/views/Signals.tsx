@@ -15,7 +15,7 @@ import {
 import type { BotSettings, Signal } from '../lib/types';
 import { buildMarketState, buildSignals, evaluateMarketRegime, executeTradePlan, shouldAutoExecute } from '../lib/market-engine';
 import { fetchBrokerConnections, saveTrade, updateSignalStatus } from '../lib/persistence';
-import { submitOandaOrder } from '../lib/broker-api';
+import { fetchOandaOrderStatus, submitOandaOrder } from '../lib/broker-api';
 import { Card, CardHeader, ConfidenceBar, DirectionBadge, EmptyState } from '../components/ui';
 
 interface Props {
@@ -62,6 +62,8 @@ export function Signals({ settings, onTradeExecuted }: Props) {
       const brokerConnections = await fetchBrokerConnections();
       const activeOanda = brokerConnections.find((connection) => connection.broker === 'OANDA' && connection.status === 'CONNECTED');
 
+      let brokerOrderStatus: string | null = null;
+
       if (activeOanda && settings.broker === 'OANDA') {
         const order = await submitOandaOrder({
           symbol: signal.symbol,
@@ -77,9 +79,19 @@ export function Signals({ settings, onTradeExecuted }: Props) {
         if (!order.ok) {
           throw new Error(order.message);
         }
+
+        const trackedOrder = await fetchOandaOrderStatus({
+          apiKey: activeOanda.credentials.api_key,
+          accountId: activeOanda.account_id ?? '',
+          environment: activeOanda.credentials.environment,
+          orderId: String(order.orderId ?? ''),
+        });
+
+        brokerOrderStatus = `Broker status: ${trackedOrder.status} | ${trackedOrder.symbol} | ${trackedOrder.side}`;
       }
 
       const trade = executeTradePlan(signal, market, { riskPerTrade: settings.risk_per_trade, balance: settings.account_balance });
+      trade.notes = brokerOrderStatus ? `${trade.notes ?? ''} ${brokerOrderStatus}`.trim() : trade.notes;
       await saveTrade(trade);
       await updateSignalStatus(signal.id, 'EXECUTED');
       setSignals((prev) => prev.filter((s) => s.id !== signal.id));

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildOandaMarketOrderRequest, buildOandaOrderPayload, normalizeBrokerSymbol, normalizePairSymbol, symbolToInstrument } from './broker-api';
+import {
+  buildOandaMarketOrderRequest,
+  buildOandaOrderPayload,
+  normalizeBrokerSymbol,
+  normalizePairSymbol,
+  symbolToInstrument,
+  parseOandaAccountSummary,
+  parseOandaOrderStatus,
+} from './broker-api';
 
 describe('broker api integration', () => {
   it('normalizes a forex symbol into the broker instrument format', () => {
@@ -33,5 +41,35 @@ describe('broker api integration', () => {
     expect(payload.order.instrument).toBe('EUR_USD');
     expect(payload.order.side).toBe('BUY');
     expect(Number(payload.order.units)).toBeGreaterThan(0);
+  });
+
+  it('parses live OANDA account summaries and order statuses', () => {
+    const summary = parseOandaAccountSummary({
+      account: {
+        id: '123',
+        balance: '25000.00',
+        currency: 'USD',
+      },
+    });
+
+    expect(summary.accountId).toBe('123');
+    expect(summary.balance).toBe(25000);
+    expect(summary.currency).toBe('USD');
+
+    const order = parseOandaOrderStatus({
+      order: {
+        id: 'abc',
+        instrument: 'EUR_USD',
+        state: 'FILLED',
+        side: 'buy',
+        price: '1.1012',
+        units: '1000',
+      },
+    });
+
+    expect(order.orderId).toBe('abc');
+    expect(order.status).toBe('FILLED');
+    expect(order.symbol).toBe('EUR/USD');
+    expect(order.side).toBe('BUY');
   });
 });

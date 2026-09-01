@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import type { BotSettings, Trade, ViewKey } from './lib/types';
 import { PAIRS, tickAll } from './lib/market';
-import { loadSettings, loadTrades } from './lib/persistence';
+import { fetchBrokerConnections, loadSettings, loadTrades, saveBrokerConnection } from './lib/persistence';
+import { fetchOandaAccountSummary } from './lib/broker-api';
 import { Dashboard } from './views/Dashboard';
 import { Signals } from './views/Signals';
 import { Risk } from './views/Risk';
@@ -46,6 +47,53 @@ export default function App() {
       setPairs([...tickAll()]);
     }, 1500);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncBrokerState = async () => {
+      const connections = await fetchBrokerConnections();
+      if (cancelled) return;
+
+      for (const connection of connections) {
+        if (connection.broker !== 'OANDA' || connection.status !== 'CONNECTED') continue;
+
+        try {
+          const summary = await fetchOandaAccountSummary({
+            api_key: connection.credentials.api_key,
+            account_id: connection.account_id ?? undefined,
+            environment: connection.credentials.environment,
+          });
+
+          if (cancelled) return;
+
+          setSettings((prev) => prev ? { ...prev, account_balance: summary.balance, updated_at: new Date().toISOString() } : prev);
+
+          const refreshed = {
+            ...connection,
+            balance: summary.balance,
+            status: 'CONNECTED' as const,
+            last_sync: summary.lastUpdated,
+            error: null,
+          };
+
+          await saveBrokerConnection(refreshed);
+        } catch (error) {
+          console.warn('Broker sync failed:', error);
+        }
+      }
+    };
+
+    void syncBrokerState();
+    const interval = setInterval(() => {
+      void syncBrokerState();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   const openPositions = trades.filter((t) => t.status === 'OPEN');
