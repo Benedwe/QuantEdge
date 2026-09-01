@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { BotSettings, Signal } from '../lib/types';
 import { generateSignal } from '../lib/ai';
+import { buildMarketState, buildSignals, executeTradePlan } from '../lib/market-engine';
 import { saveTrade, updateSignalStatus } from '../lib/persistence';
 import { Card, CardHeader, ConfidenceBar, DirectionBadge, EmptyState } from '../components/ui';
 
@@ -29,38 +30,24 @@ export function Signals({ settings, onTradeExecuted }: Props) {
   const [executing, setExecuting] = useState<string | null>(null);
 
   useEffect(() => {
-    setSignals([generateSignal(), generateSignal(), generateSignal(), generateSignal()]);
+    const base = buildMarketState('EUR/USD');
+    setSignals(buildSignals(base, 4));
   }, []);
 
   const scan = () => {
     setScanning(true);
     setTimeout(() => {
-      const newSignal = generateSignal();
-      setSignals((prev) => [newSignal, ...prev].slice(0, 20));
+      const next = buildMarketState('EUR/USD');
+      const generated = buildSignals(next, 2);
+      setSignals((prev) => [...generated, ...prev].slice(0, 20));
       setScanning(false);
     }, 1200);
   };
 
   const execute = async (signal: Signal) => {
     setExecuting(signal.id);
-    const trade = {
-      id: crypto.randomUUID(),
-      symbol: signal.symbol,
-      direction: signal.direction,
-      status: 'OPEN' as const,
-      entry_price: (signal.entry_zone_low + signal.entry_zone_high) / 2,
-      exit_price: null,
-      stop_loss: signal.stop_loss,
-      take_profit: signal.take_profit,
-      lot_size: 0.5,
-      confidence: signal.confidence,
-      pnl: 0,
-      pips: 0,
-      opened_at: new Date().toISOString(),
-      closed_at: null,
-      strategy: 'AI Ensemble',
-      notes: `Executed from signal (${signal.confidence.toFixed(0)}% confidence)`,
-    };
+    const market = buildMarketState(signal.symbol);
+    const trade = executeTradePlan(signal, market, { riskPerTrade: settings.risk_per_trade, balance: settings.account_balance });
     await saveTrade(trade);
     await updateSignalStatus(signal.id, 'EXECUTED');
     setSignals((prev) => prev.filter((s) => s.id !== signal.id));

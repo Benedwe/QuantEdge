@@ -7,6 +7,7 @@ import type {
   Signal,
 } from './types';
 import { getPair, PAIRS } from './market';
+import { buildSignals, buildMarketState, executeTradePlan } from './market-engine';
 
 const INDICATOR_NAMES = ['RSI(14)', 'MACD(12,26)', 'Bollinger Bands', 'EMA(50)', 'EMA(200)', 'ATR(14)', 'Fibonacci 61.8%', 'Support/Resistance', 'Order Block', 'Fair Value Gap', 'Liquidity Zone', 'Stochastic'];
 
@@ -57,36 +58,14 @@ function genExplanation(symbol: string, direction: Direction, confidence: number
 
 export function generateSignal(symbol?: string): Signal {
   const pair = symbol ? getPair(symbol)! : pick(PAIRS);
-  const direction: Direction = Math.random() > 0.5 ? 'BUY' : 'SELL';
-  const confidence = Math.round(rand(78, 95));
-  const price = pair.price;
-  const vol = symbol?.includes('JPY') ? 0.3 : 0.003;
-  const entryLow = price - vol * 0.5;
-  const entryHigh = price + vol * 0.5;
-  const tp = direction === 'BUY' ? price + vol * 3 : price - vol * 3;
-  const sl = direction === 'BUY' ? price - vol * 1.5 : price + vol * 1.5;
-  const sentiment = Math.round(rand(-60, 60));
-  return {
-    id: crypto.randomUUID(),
-    symbol: pair.symbol,
-    direction,
-    confidence,
-    entry_zone_low: entryLow,
-    entry_zone_high: entryHigh,
-    take_profit: tp,
-    stop_loss: sl,
-    expected_volatility: Math.round(rand(0.8, 2.5) * 100) / 100,
-    models: genModels(direction),
-    indicators: genIndicators(direction),
-    sentiment_score: sentiment,
-    explanation: genExplanation(pair.symbol, direction, confidence),
-    created_at: new Date().toISOString(),
-    status: 'ACTIVE',
-  };
+  const market = buildMarketState(pair.symbol);
+  const signals = buildSignals(market, 1);
+  return signals[0];
 }
 
 export function generateSignals(count: number): Signal[] {
-  return Array.from({ length: count }, () => generateSignal());
+  const market = buildMarketState(PAIRS[0].symbol);
+  return buildSignals(market, count);
 }
 
 export function generateNews(): NewsItem[] {

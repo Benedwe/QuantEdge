@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import type { BotSettings, Candle, CurrencyPair, Signal, Trade } from '../lib/types';
 import { generateCandles } from '../lib/market';
-import { generateSignal, generateNews, generateEconomicEvents } from '../lib/ai';
+import { generateNews, generateEconomicEvents } from '../lib/ai';
+import { buildMarketState, buildSignals } from '../lib/market-engine';
 import { saveTrade, updateSignalStatus } from '../lib/persistence';
 import { Card, CardHeader, StatCard, ConfidenceBar, DirectionBadge, ImpactBadge, EmptyState } from '../components/ui';
 import { CandleChart, Sparkline } from '../components/CandleChart';
@@ -42,9 +43,10 @@ export function Dashboard({ pairs, trades, settings, onTradesChange, refreshTrad
 
   useEffect(() => {
     if (signals.length === 0) {
-      setSignals([generateSignal(), generateSignal(), generateSignal()]);
+      const marketState = buildMarketState(selectedPair);
+      setSignals(buildSignals(marketState, 3));
     }
-  }, [signals.length]);
+  }, [selectedPair, signals.length]);
 
   const openPositions = trades.filter((t) => t.status === 'OPEN');
   const closedTrades = trades.filter((t) => t.status === 'CLOSED');
