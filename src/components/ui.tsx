@@ -7,7 +7,7 @@ export function Card({ children, className = '', hover = false }: { children: Re
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between px-5 pt-4 pb-3 border-b border-ink-700/40">
+    <div className="flex flex-col gap-2 px-5 pt-4 pb-3 border-b border-ink-700/40 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h3 className="text-sm font-semibold text-ink-100">{title}</h3>
         {subtitle && <p className="text-xs text-ink-400 mt-0.5">{subtitle}</p>}
@@ -45,7 +45,7 @@ export function StatCard({
         <span className="label">{label}</span>
         {icon && <span className="text-ink-400">{icon}</span>}
       </div>
-      <div className={`stat-value text-2xl ${accentColors[accent]}`}>{value}</div>
+      <div className={`stat-value text-xl sm:text-2xl ${accentColors[accent]}`}>{value}</div>
       {subtitle && <p className="text-xs text-ink-400 mt-0.5">{subtitle}</p>}
       {change !== undefined && (
         <div className="flex items-center gap-1 mt-1 text-xs">

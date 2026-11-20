@@ -90,7 +90,7 @@ export function Risk({ trades, settings, pairs }: Props) {
         <Card>
           <CardHeader title="Position Size Calculator" subtitle="Dynamic risk-based sizing" action={<Calculator className="w-4 h-4 text-accent-400" />} />
           <div className="p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="label">Symbol</label>
                 <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="input mt-1">

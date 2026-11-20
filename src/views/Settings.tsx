@@ -138,7 +138,7 @@ export function SettingsView({ settings, onSave }: Props) {
         <div className="p-5 space-y-5">
           <div>
             <label className="label">Trading Mode</label>
-            <div className="grid grid-cols-3 gap-3 mt-2">
+            <div className="grid grid-cols-1 gap-3 mt-2 sm:grid-cols-3">
               {(['MANUAL', 'SEMIAUTO', 'AUTO'] as TradingMode[]).map((mode) => (
                 <button
                   key={mode}
@@ -160,7 +160,7 @@ export function SettingsView({ settings, onSave }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Default Broker</label>
               <select value={form.broker} onChange={(e) => update('broker', e.target.value)} className="input mt-1">

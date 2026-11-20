@@ -66,33 +66,33 @@ export function Backtesting({ settings }: Props) {
     <div className="space-y-6 animate-fade-in">
       {/* Config bar */}
       <Card>
-        <div className="p-4 flex flex-wrap items-end gap-4">
-          <div>
+        <div className="p-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="w-full sm:w-auto">
             <label className="label">Symbol</label>
-            <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="input mt-1 w-32">
+            <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="input mt-1 w-full sm:w-32">
               {['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF'].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="label">Strategy</label>
-            <select value={strategy} onChange={(e) => setStrategy(e.target.value)} className="input mt-1 w-44">
+            <select value={strategy} onChange={(e) => setStrategy(e.target.value)} className="input mt-1 w-full sm:w-44">
               {['AI Ensemble', 'LSTM-Transformer', 'XGBoost', 'Smart Money', 'ICT Order Block', 'Random Forest'].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="label">Period</label>
-            <select value={period} onChange={(e) => setPeriod(e.target.value)} className="input mt-1 w-24">
+            <select value={period} onChange={(e) => setPeriod(e.target.value)} className="input mt-1 w-full sm:w-24">
               {['1M', '3M', '6M', '1Y', '2Y', '5Y'].map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
           </div>
           <div className="flex-1" />
-          <button onClick={runBacktest} disabled={running} className="btn-primary">
+          <button onClick={runBacktest} disabled={running} className="btn-primary w-full sm:w-auto">
             {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             {running ? 'Running...' : 'Run Backtest'}
           </button>
